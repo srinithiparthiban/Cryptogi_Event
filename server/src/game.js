@@ -94,15 +94,34 @@ function assignRanks(sortedByScoreDesc) {
 }
 
 // What everybody may see while the event is live. Never used after the event ends.
+// This is on the hottest path in the whole app - it re-runs on every single participant action
+// across 100+ concurrent players - so it must NOT pull full documents into Node. The old version
+// called rankedParticipants(), which is Participant.find() with no projection: every participant's
+// full grid, answered history, access log and violations, for every broadcast. That is the actual
+// cause of the server stalling/blanking under load, not a socket or client problem.
+// This version pushes the sort and the counting into MongoDB (which can use the score index and
+// never has to materialize the heavy subdocuments), and caps the result to a leaderboard size that
+// stays small regardless of how many people are playing.
+const SCOREBOARD_LIMIT = 50;
 async function publicScoreboard() {
   const ev = await getEvent();
   if (ev.status === 'ended') return { status: 'ended', rows: null };
   if (ev.status === 'setup') return { status: 'setup', rows: [] };
-  const rows = assignRanks(await rankedParticipants()).map(({ rank, name, year, score, answered }) => ({ rank, name, year, score, answered }));
-  return { status: 'live', rows };
+  const top = await Participant.aggregate([
+    { $project: { name: 1, year: 1, score: 1, answered: { $size: '$answered' } } },
+    { $sort: { score: -1, name: 1 } },
+    { $limit: SCOREBOARD_LIMIT },
+  ]);
+  const rows = assignRanks(top.map((r) => ({ ...r, score: r.score || 0 })));
+  return { status: 'live', rows, total: await Participant.estimatedDocumentCount() };
 }
 
 // ---------- realtime fan-out (throttled) ----------
+// With 100+ people answering roughly every 15-20s each, the old 300ms debounce still meant
+// several broadcasts per second at peak, each fanning out to every connected socket. A quiz
+// scoreboard doesn't need sub-second freshness, so this widens the window to cut both the query
+// rate and the socket.io fan-out rate by roughly 5x without anyone noticing the difference.
+const BROADCAST_INTERVAL_MS = 1500;
 let pending = false;
 function scheduleBroadcast() {
   if (!io || pending) return;
@@ -116,7 +135,7 @@ function scheduleBroadcast() {
     } catch (e) {
       console.error('broadcast failed', e.message);
     }
-  }, 300);
+  }, BROADCAST_INTERVAL_MS);
 }
 function notifyParticipant(id) {
   if (io) io.to(`p:${id}`).emit('participant:update');
@@ -358,7 +377,7 @@ async function endEvent(evIn) {
 // data and event state; 'roster' also clears participants; 'all' clears everything.
 async function resetEvent(wipe = 'runs') {
   const ops = [
-    Participant.updateMany({}, { $set: { current: null, answered: [], score: 0, totalTimeMs: 0, violations: [], sessionToken: null, boundAt: null, finishedAt: null }, $unset: { seed: '', grid: '' } }),
+    Participant.updateMany({}, { $set: { current: null, answered: [], score: 0, totalTimeMs: 0, violations: [], sessionTokens: [], boundAt: null, finishedAt: null }, $unset: { seed: '', grid: '' } }),
     Event.deleteMany({}),
   ];
   if (wipe === 'roster' || wipe === 'all') ops[0] = Participant.deleteMany({});

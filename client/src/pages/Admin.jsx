@@ -90,7 +90,11 @@ function Panel({ token, logout }) {
     const soft = () => { clearTimeout(timer.current); timer.current = setTimeout(load, 400); };
     s.on('admin:refresh', soft);
     s.on('event:status', soft);
-    return () => s.disconnect();
+    // Same backstop as the participant side: if this socket drops or never reconnects cleanly
+    // during a traffic spike, the panel would otherwise sit there silently out of date until
+    // manually refreshed. This poll keeps it moving underneath the push updates.
+    const poll = setInterval(load, 6000);
+    return () => { s.disconnect(); clearInterval(poll); clearTimeout(timer.current); };
   }, [token, load]);
 
   const run = async (fn, okMsg) => {

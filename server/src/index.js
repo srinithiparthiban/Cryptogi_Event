@@ -5,6 +5,7 @@ const path = require('path');
 const http = require('http');
 const express = require('express');
 const cors = require('cors');
+const compression = require('compression');
 const mongoose = require('mongoose');
 const jwt = require('jsonwebtoken');
 const { Server } = require('socket.io');
@@ -17,6 +18,7 @@ const io = new Server(server, { cors: { origin: true } });
 game.setIO(io);
 
 app.set('trust proxy', true); // needed behind Render/Railway/any reverse proxy so req.ip is the real client IP
+app.use(compression()); // gzip every response - the scoreboard/state JSON and the built JS bundle shrink a lot, which matters most on the congested wifi 100+ phones share at a live event
 app.use(cors({ origin: true }));
 app.use(express.json({ limit: '1mb' })); // roster CSV pasted as JSON can be a bit larger than the old 100kb cap
 app.use('/api/admin', require('./routes/admin'));
@@ -25,9 +27,12 @@ app.use('/api/public', require('./routes/public'));
 app.use('/api', (req, res) => res.status(404).json({ error: 'Not found' }));
 
 // Serve the built React app so the whole event runs from one address (npm run build in client/ first).
+// maxAge on the hashed JS/CSS bundle lets browsers cache it instead of re-downloading it from this
+// one server on every page load - the difference between one request per device and one request
+// per device *per navigation* when 100+ phones are hitting the same small server.
 const dist = path.join(__dirname, '../../client/dist');
 if (fs.existsSync(dist)) {
-  app.use(express.static(dist));
+  app.use(express.static(dist, { maxAge: '1y', index: false }));
   app.get(/^(?!\/api|\/socket\.io).*/, (req, res) => res.sendFile(path.join(dist, 'index.html')));
 }
 
@@ -48,7 +53,7 @@ io.use(async (socket, next) => {
     try { jwt.verify(a.adminToken, config.JWT_SECRET); socket.join('admin'); } catch { /* not admin */ }
   }
   if (a.token) {
-    const p = await Participant.findOne({ sessionToken: a.token, active: true }, '_id').catch(() => null);
+    const p = await Participant.findOne({ sessionTokens: a.token, active: true }, '_id').catch(() => null);
     if (p) { socket.join(`p:${p._id}`); socket.join('scoreboard'); }
   }
   if (a.scoreboard) socket.join('scoreboard');
@@ -60,7 +65,10 @@ io.use(async (socket, next) => {
 setInterval(() => { game.getEvent().catch(() => {}); }, 10_000);
 
 mongoose
-  .connect(config.MONGO_URI)
+  // maxPoolSize: with 100+ participants hammering the API at once, the default pool (100) can
+  // queue up under a burst; serverSelectionTimeoutMS makes a request fail fast with a clear error
+  // instead of hanging the connection (which is what produced the blank page under load).
+  .connect(config.MONGO_URI, { maxPoolSize: 150, minPoolSize: 5, serverSelectionTimeoutMS: 8000, socketTimeoutMS: 20000 })
   .then(async () => {
     await game.recoverTimers();
     await game.getEvent(); // apply any schedule transition missed while the server was down

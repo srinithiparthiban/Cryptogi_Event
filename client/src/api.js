@@ -12,7 +12,7 @@ export async function api(path, { method = 'GET', body, token, admin, file } = {
     headers['Content-Type'] = 'application/json';
     payload = JSON.stringify(body);
   }
-
+  
   const API_BASE = import.meta.env.VITE_API_URL || '/api';
   const res = await fetch(API_BASE + path, { method, headers, body: payload });
   const data = await res.json().catch(() => ({}));

@@ -54,7 +54,7 @@ function JoinForm({ onLogin, error }) {
         </label>
         {error && <div className="banner">{error}</div>}
         <button className="btn" disabled={!email.trim() || busy}>{busy ? 'Checking…' : 'Join the event'}</button>
-        <p className="muted small">Use the same email you registered with. This works on one device only.</p>
+        <p className="muted small">Use the same email you registered with.</p>
       </form>
     </div>
   );
@@ -106,7 +106,12 @@ export default function Play() {
     }
   }, [token]);
 
-  // 2. realtime updates
+  // 2. realtime updates, with a polling fallback underneath.
+  // With 100+ people joining at once, a socket connection can fail to establish or can drop
+  // during a traffic spike, and the old code only ever called refresh() once (on 'connect'), so a
+  // participant whose socket never connected was stuck on "Connecting…" forever - a blank-looking
+  // page. The interval below keeps state moving even when the socket is having trouble; when the
+  // socket is healthy this is just a quiet backstop; it does nothing extra.
   useEffect(() => {
     if (!token) return;
     const s = connect({ token });
@@ -116,7 +121,8 @@ export default function Play() {
     s.on('scoreboard', (p) => setRows(p.rows || []));
     refresh();
     api('/public/scoreboard').then((p) => setRows(p.rows || [])).catch(() => {});
-    return () => s.disconnect();
+    const poll = setInterval(refresh, 5000);
+    return () => { s.disconnect(); clearInterval(poll); };
   }, [token, refresh]);
 
   const status = state && state.event.status;
