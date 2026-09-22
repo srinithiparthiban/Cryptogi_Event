@@ -13,7 +13,8 @@ export async function api(path, { method = 'GET', body, token, admin, file } = {
     payload = JSON.stringify(body);
   }
 
-  const res = await fetch('/api' + path, { method, headers, body: payload });
+  const API_BASE = import.meta.env.VITE_API_URL || '/api';
+  const res = await fetch(API_BASE + path, { method, headers, body: payload });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     const err = new Error(data.error || 'Something went wrong. Try again.');
