@@ -16,7 +16,7 @@ module.exports = [
   q('easy', 10, '🐍 💻', 'This programming language shares its name with a type of snake.', ['Java', 'Python', 'Ruby', 'Swift'], 'Python'),
   q('easy', 10, '☕ 💻', 'A programming language shares its name with a popular drink.', ['C', 'Java', 'Kotlin', 'Go'], 'Java'),
   q('easy', 10, '🌐 🔗 💻', 'Devices communicate and share resources through this arrangement.', ['Network', 'Spreadsheet', 'Algorithm', 'Variable'], 'Network'),
-
+   q('easy', 10, '🧑‍🏫 🧑‍🎓 🧬', 'In OOP, a new class can derive features from an existing class using this concept.', ['Inheritance', 'Iteration', 'Encryption', 'Normalization'], 'Inheritance'),
   // ---- Medium (20 pts) - Q11 to Q20 ----
   q('medium', 20, '🪪 👆 ✅', 'A system checks whether you really are the person you claim to be.', ['Authentication', 'Authorization', 'Encryption', 'Compilation'], 'Authentication'),
   q('medium', 20, '👤 🛂 🚪', 'After identity is confirmed, this determines what you are allowed to access.', ['Authorization', 'Authentication', 'Debugging', 'Backup'], 'Authorization'),
@@ -28,11 +28,14 @@ module.exports = [
   q('medium', 20, '🔢 0️⃣ 1️⃣', 'This number system uses only two possible digits.', ['Binary', 'Decimal', 'Hexadecimal', 'Octal'], 'Binary'),
   q('medium', 20, '🔠 🔢 🧮', 'This base-16 number system uses digits and letters A through F.', ['Binary', 'Decimal', 'Hexadecimal', 'Roman numerals'], 'Hexadecimal'),
   q('medium', 20, '🖥️ ⚙️ 🧑‍💻', 'This core software manages hardware and provides services for applications.', ['Operating system', 'Text editor', 'Web page', 'Compiler'], 'Operating system'),
- /*
+
   // ---- Hard (30 pts) - Q21 to Q30 ----
   q('hard', 30, '⌨️ 🖱️ 🖥️', 'These are examples of ways a user provides data or commands to a computer.', ['Input devices', 'Output devices', 'Storage devices', 'Network devices'], 'Input devices'),
   q('hard', 30, '🖥️ 🔊 🖨️', 'These components present processed information to a user.', ['Output devices', 'Input devices', 'Processors', 'Routers'], 'Output devices'),
+  
+  
   q('hard', 30, '🧮 ⚡ 🧠', "Often called the computer's brain, it executes instructions.", ['CPU', 'RAM', 'SSD', 'GPU memory'], 'CPU'),
+   /*
   q('hard', 30, '🧠 ⏳ 🔌', 'This temporary working memory loses its contents when power is turned off.', ['RAM', 'ROM', 'SSD', 'DVD'], 'RAM'),
   q('hard', 30, '💽 📂 🗄️', 'This non-volatile component keeps files even after shutdown.', ['Storage', 'Cache', 'Register', 'ALU'], 'Storage'),
   q('hard', 30, '🔁 ❓ ✅❌', 'A program can use this to choose between alternative paths.', ['Conditional statement', 'Comment', 'Variable declaration', 'Function call'], 'Conditional statement'),
