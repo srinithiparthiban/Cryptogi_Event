@@ -101,8 +101,8 @@ input:disabled, select:disabled { background: #ece9f7; color: var(--muted); }
 .bar { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; align-items: center; padding: 12px 18px; margin-bottom: 14px; background: var(--ink); color: #fff; border-radius: 14px; }
 .bar .pill { color: var(--ink); }
 .bar .score { font-family: var(--display); font-size: 1.5rem; font-weight: 800; }
-.cols { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 20px; align-items: start; }
-@media (max-width: 900px) { .cols { grid-template-columns: 1fr; } h1 { font-size: 1.9rem; } .stage { padding: 12px 12px 32px; } }
+.cols { display: grid; grid-template-columns: 1fr; gap: 20px; align-items: start; }
+@media (max-width: 900px) { h1 { font-size: 1.9rem; } .stage { padding: 12px 12px 32px; } }
 
 .board { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
 @media (max-width: 560px) { .board { grid-template-columns: 1fr; gap: 20px; } }

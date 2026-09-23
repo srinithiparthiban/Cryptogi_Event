@@ -58,8 +58,10 @@ async function maybeAutoTransition(ev) {
 }
 
 // ---------- ranking ----------
-// Primary sort key is score; time/violations/name only break ties within equal score so that
-// participants who are truly tied on points share the same rank ("1, 1, 3" not "1, 2, 3").
+// Primary sort key is score; among tied scores, whoever submitted earlier ranks higher (the
+// participant's own "Submit" button, once every clue has been attempted, is what sets
+// finishedAt). Time spent on correct answers, then violations, then name only come into play if
+// two participants are tied on score AND neither of them ever explicitly submitted.
 function statsFor(p) {
   return {
     id: p._id,
@@ -72,9 +74,16 @@ function statsFor(p) {
     answered: p.answered.length,
     timeMs: p.totalTimeMs,
     violations: p.violations.length,
+    finishedAt: p.finishedAt || null,
   };
 }
-const tieBreak = (a, b) => a.timeMs - b.timeMs || a.violations - b.violations || a.name.localeCompare(b.name);
+const tieBreak = (a, b) => {
+  // Never-submitted participants (finishedAt: null) sort after anyone who did submit, within
+  // the same tied score - submitting is what this tiebreak is meant to reward.
+  const af = a.finishedAt ? +new Date(a.finishedAt) : Infinity;
+  const bf = b.finishedAt ? +new Date(b.finishedAt) : Infinity;
+  return af - bf || a.timeMs - b.timeMs || a.violations - b.violations || a.name.localeCompare(b.name);
+};
 
 async function rankedParticipants() {
   const list = await Participant.find().lean();
@@ -389,7 +398,21 @@ async function resetEvent(wipe = 'runs') {
   announceStatus('setup');
 }
 
+// Best-effort logout marker: fired when a participant's socket disconnects (tab closed, browser
+// killed, network dropped, or navigated away). Paired with the login/resume access-log entries,
+// this is what lets the roster export show a login and a logout time for each session. It can't
+// be perfect - a device that loses power instantly won't get to send this - but socket.io fires
+// 'disconnect' in every normal case (closing the tab, switching apps, losing wifi), which covers
+// the vast majority of real sessions.
+async function recordLogout(id, ip, ua) {
+  if (!id) return;
+  await Participant.updateOne(
+    { _id: id },
+    { $push: { accessLog: { $each: [{ at: new Date(), ip: ip || '', ua: String(ua || '').slice(0, 160), result: 'logout' }], $slice: -100 } } }
+  ).catch((e) => console.error('recordLogout failed', e.message));
+}
+
 module.exports = {
   GRACE_MS, TIERS, setIO, getEvent, publicScoreboard, participantState, selectClue, submitAnswer,
-  finishParticipant, recordViolation, startEvent, endEvent, resetEvent, recoverTimers, notifyParticipant, scheduleBroadcast, announceStatus,
+  finishParticipant, recordViolation, recordLogout, startEvent, endEvent, resetEvent, recoverTimers, notifyParticipant, scheduleBroadcast, announceStatus,
 };

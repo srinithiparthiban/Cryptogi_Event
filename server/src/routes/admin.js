@@ -51,7 +51,7 @@ router.get('/overview', wrap(async (req, res) => {
     questionCounts: counts,
     participants: participants.map((p) => ({
       id: p._id, name: p.name, year: p.year, dept: p.dept, email: p.email, phone: p.phone, regNo: p.regNo, slot: p.slot, active: p.active,
-      bound: !!p.sessionToken, boundAt: p.boundAt, score: p.score, answered: p.answered.length,
+      bound: p.sessionTokens.length, boundAt: p.boundAt, score: p.score, answered: p.answered.length,
       correct: p.answered.filter((a) => a.status === 'correct').length, total: p.grid.length,
       violations: p.violations.length, playing: !!p.current, finished: !!p.finishedAt, lastAccess: p.accessLog[p.accessLog.length - 1] || null,
     })),
@@ -101,8 +101,9 @@ router.delete('/participants', needSetup, wrap(async (req, res) => {
 }));
 
 // Access controls stay available even while the event is live (a participant can be helped mid-event).
+// Since an email can now be logged in on several devices at once, this signs it out of ALL of them.
 router.post('/participants/:id/reset-device', wrap(async (req, res) => {
-  await Participant.updateOne({ _id: req.params.id }, { $set: { sessionToken: null, boundAt: null } });
+  await Participant.updateOne({ _id: req.params.id }, { $set: { sessionTokens: [], boundAt: null } });
   game.notifyParticipant(req.params.id);
   res.json({ ok: true });
 }));
@@ -114,16 +115,53 @@ router.post('/participants/:id/active', wrap(async (req, res) => {
 }));
 
 // Roster export, for the admin's own records - not needed for anyone to log in.
+// Formats every timestamp in IST (Asia/Kolkata), regardless of what timezone the server runs in.
+function istString(d) {
+  if (!d) return '';
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Kolkata', day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+  }).formatToParts(new Date(d));
+  const get = (t) => parts.find((p) => p.type === t)?.value;
+  return `${get('day')}-${get('month')}-${get('year')} ${get('hour')}:${get('minute')}:${get('second')} IST`;
+}
+const LOGIN_RESULTS = new Set(['login-new-device', 'resume']);
+function sessionStats(accessLog) {
+  const logins = accessLog.filter((a) => LOGIN_RESULTS.has(a.result));
+  const logouts = accessLog.filter((a) => a.result === 'logout');
+  return {
+    loginCount: logins.length,
+    logoutCount: logouts.length,
+    firstLogin: logins[0]?.at,
+    lastLogin: logins[logins.length - 1]?.at,
+    lastLogout: logouts[logouts.length - 1]?.at,
+  };
+}
+
 router.get('/participants/export.csv', wrap(async (req, res) => {
   const participants = await Participant.find().sort({ year: 1, name: 1 }).lean();
   const esc = (s) => `"${String(s ?? '').replace(/"/g, '""')}"`;
-  const header = 'Name,Year,Department,Email,Phone,Register No,Slot,Score,Violations\n';
+  const header = [
+    'Name', 'Year', 'Department', 'Register No', 'Slot', 'Email', 'Phone', 'Active',
+    'Score', 'Clues Answered', 'Correct', 'Violations', 'Finished',
+    'Logins', 'Logouts', 'First Login (IST)', 'Last Login (IST)', 'Last Logout (IST)', 'Last Activity (IST)',
+  ].join(',') + '\n';
   const body = participants
-    .map((p) => [p.name, p.year, p.dept, p.email, p.phone, p.regNo, p.slot, p.score, p.violations.length].map(esc).join(','))
+    .map((p) => {
+      const s = sessionStats(p.accessLog || []);
+      return [
+        p.name, p.year, p.dept, p.regNo, p.slot, p.email, p.phone, p.active ? 'Yes' : 'No',
+        p.score, p.answered.length, p.answered.filter((a) => a.status === 'correct').length, p.violations.length, p.finishedAt ? 'Yes' : 'No',
+        s.loginCount, s.logoutCount, istString(s.firstLogin), istString(s.lastLogin), istString(s.lastLogout), istString(p.updatedAt),
+      ].map(esc).join(',');
+    })
     .join('\n');
-  res.set('Content-Type', 'text/csv');
-  res.set('Content-Disposition', 'attachment; filename="participants.csv"');
-  res.send(header + body);
+  // A UTF-8 BOM prefix is what makes Excel (as opposed to a plain text editor) recognise this as
+  // UTF-8 CSV instead of guessing a different encoding and mangling names with accents/emoji.
+  const csv = '\uFEFF' + header + body;
+  res.set('Content-Type', 'text/csv; charset=utf-8');
+  res.set('Content-Disposition', `attachment; filename="participants-${new Date().toISOString().slice(0, 10)}.csv"`);
+  res.send(csv);
 }));
 
 // ---------- questions ----------

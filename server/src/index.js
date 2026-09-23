@@ -54,10 +54,23 @@ io.use(async (socket, next) => {
   }
   if (a.token) {
     const p = await Participant.findOne({ sessionTokens: a.token, active: true }, '_id').catch(() => null);
-    if (p) { socket.join(`p:${p._id}`); socket.join('scoreboard'); }
+    // Participants are no longer put in the 'scoreboard' room - the leaderboard is admin-only
+    // now, so there is nothing to fan out to them, and it saves a broadcast target per participant.
+    if (p) { socket.join(`p:${p._id}`); socket.data.participantId = p._id; }
   }
-  if (a.scoreboard) socket.join('scoreboard');
+  if (a.scoreboard) socket.join('scoreboard'); // the separate /scoreboard projector page opts in explicitly
   next();
+});
+
+// A participant's socket disconnecting (tab closed, app switched, wifi dropped) is the closest
+// thing this app has to a "logout" - there's no explicit logout button - so it's logged with a
+// timestamp the same way a login is, for the roster export.
+io.on('connection', (socket) => {
+  socket.on('disconnect', () => {
+    if (socket.data.participantId) {
+      game.recordLogout(socket.data.participantId, socket.handshake.address, socket.handshake.headers['user-agent']);
+    }
+  });
 });
 
 // Backup for the schedule check: even with nobody hitting the API right at the scheduled

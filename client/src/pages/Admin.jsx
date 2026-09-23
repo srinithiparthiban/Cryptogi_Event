@@ -428,17 +428,19 @@ function ResultsTab({ status, results }) {
           ))}
           {!order.length && <p className="muted">No eligible participants - everyone exceeded the violation limit.</p>}
         </div>
-        <p className="small muted">Ties are broken for display order by less time spent on correct answers, then fewer violations, then name - but tied scores still share the same rank.</p>
+        <p className="small muted">Ties are broken for display order by earlier submission time, then less time spent on correct answers, then fewer violations, then name - but tied scores still share the same rank.</p>
       </div>
       <div className="card scroll">
         <h2>Full standings</h2>
         <table className="table">
-          <thead><tr><th>Rank</th><th>Name</th><th>Year</th><th className="num">Points</th><th className="num">Correct</th><th className="num">Attempted</th><th className="num">Time on correct (s)</th><th className="num">Violations</th><th>Eligible</th></tr></thead>
+          <thead><tr><th>Rank</th><th>Name</th><th>Year</th><th className="num">Points</th><th className="num">Correct</th><th className="num">Attempted</th><th>Submitted at</th><th className="num">Time on correct (s)</th><th className="num">Violations</th><th>Eligible</th></tr></thead>
           <tbody>
             {results.standings.map((r) => (
               <tr key={r.email} className={r.eligible && r.rank <= 3 ? 'me' : ''}>
                 <td>{r.rank}</td><td>{r.name}</td><td>{r.year}</td><td className="num"><b>{r.score}</b></td>
-                <td className="num">{r.correct}</td><td className="num">{r.answered}</td><td className="num">{(r.timeMs / 1000).toFixed(1)}</td><td className="num">{r.violations}</td>
+                <td className="num">{r.correct}</td><td className="num">{r.answered}</td>
+                <td>{r.finishedAt ? new Date(r.finishedAt).toLocaleString() : 'Not submitted'}</td>
+                <td className="num">{(r.timeMs / 1000).toFixed(1)}</td><td className="num">{r.violations}</td>
                 <td>{r.eligible ? 'Yes' : 'No'}</td>
               </tr>
             ))}

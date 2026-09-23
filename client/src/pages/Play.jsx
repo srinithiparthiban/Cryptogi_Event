@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../api';
 import { connect } from '../socket';
-import ScoreTable from '../components/ScoreTable';
 
 const TOKEN_KEY = 'event:token';
 const EMAIL_KEY = 'event:email';
@@ -65,7 +64,6 @@ export default function Play() {
   const [loginError, setLoginError] = useState('');
   const [fatal, setFatal] = useState(null);
   const [state, setState] = useState(null);
-  const [rows, setRows] = useState([]);
   const [armed, setArmed] = useState(false); // participant pressed "Start playing"
   const [inFs, setInFs] = useState(!!document.fullscreenElement);
   const [selected, setSelected] = useState(null);
@@ -112,15 +110,14 @@ export default function Play() {
   // participant whose socket never connected was stuck on "Connecting…" forever - a blank-looking
   // page. The interval below keeps state moving even when the socket is having trouble; when the
   // socket is healthy this is just a quiet backstop; it does nothing extra.
+  // No leaderboard/scoreboard is fetched here - the leaderboard is admin-only now (see Admin.jsx).
   useEffect(() => {
     if (!token) return;
     const s = connect({ token });
     s.on('participant:update', refresh);
     s.on('event:status', refresh);
     s.on('connect', refresh);
-    s.on('scoreboard', (p) => setRows(p.rows || []));
     refresh();
-    api('/public/scoreboard').then((p) => setRows(p.rows || [])).catch(() => {});
     const poll = setInterval(refresh, 5000);
     return () => { s.disconnect(); clearInterval(poll); };
   }, [token, refresh]);
@@ -327,10 +324,6 @@ export default function Play() {
             </div>
           )}
         </main>
-        <aside className="card">
-          <h3>Live scoreboard</h3>
-          <ScoreTable rows={rows} me={state.participant.name} />
-        </aside>
       </div>
     </div>
   );
